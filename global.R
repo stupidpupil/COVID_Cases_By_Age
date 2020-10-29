@@ -12,18 +12,17 @@ library(lubridate)
   source <- "https://coronavirus.data.gov.uk/downloads/demographic/cases/specimen_date-latest.csv"
   temp <- curl_download(url=source, destfile=temp, quiet=FALSE, mode="wb")
   
-  data <- read.csv(temp) %>% 
-    select(c(1:23)) %>% 
+  data <- read_csv(temp, col_types=paste0("cccD", strrep("i", 19), strrep("_", 47))) %>% 
     gather(age, cases, c(5:23)) 
   
   #Tidy up
   data <- data %>% 
-    mutate(age=gsub("X", "", age), age=gsub("_", "-", age), age=gsub("\\.", "\\+", age),
-           date=as.Date(date), age=factor(age, levels=c("0-4", "5-9", "10-14", "15-19",
-                                                        "20-24", "25-29", "30-34", "35-39", 
-                                                        "40-44", "45-49", "50-54", "55-59", 
-                                                        "60-64", "65-69", "70-74", "75-79", 
-                                                        "80-84", "85-89", "90+"))) 
+    mutate(age = age %>% str_replace("X", "") %>% str_replace("_", "-") %>% str_replace("\\.", "\\+") %>%
+            factor(levels=c("0-4", "5-9", "10-14", "15-19",
+                            "20-24", "25-29", "30-34", "35-39", 
+                            "40-44", "45-49", "50-54", "55-59", 
+                            "60-64", "65-69", "70-74", "75-79", 
+                            "80-84", "85-89", "90+"))) 
   
   #Bring in populations
   temp <- tempfile()
@@ -56,7 +55,8 @@ library(lubridate)
              age.sgl<85 ~ "80-84",
              age.sgl<90 ~ "85-89",
              TRUE ~ "90+"
-           )) %>% 
+           ) %>% factor(levels = levels(data$age))
+           ) %>% 
     #And sort out Buckinghamshire codes
     mutate(Code=case_when(
       Code %in% c("E07000005", "E07000006", "E07000007", "E07000008") ~ "E06000060",
@@ -67,7 +67,7 @@ library(lubridate)
   
   #Merge into case data
   data <- data %>% 
-    merge(pop, by.x=c("areaCode", "age"), by.y=c("Code", "age"), all.x=TRUE) %>% 
+    left_join(pop %>% rename(areaCode = Code), by=c("areaCode", "age")) %>% 
     arrange(date) 
   
   #Collapse age bands further
